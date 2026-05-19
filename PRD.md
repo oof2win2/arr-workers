@@ -16,7 +16,7 @@ A self-hosted web application that periodically audits a qBittorrent instance (o
 ## Non-Goals
 
 - Automatic removal without human approval
-- Seeding ratio/time gating *(deferred, must be easy to add later)*
+- Seeding ratio/time gating _(deferred, must be easy to add later)_
 - Cross-filesystem hardlink detection
 - Jellyfin integration beyond passive context
 
@@ -27,15 +27,17 @@ A self-hosted web application that periodically audits a qBittorrent instance (o
 All instances are stored in the database and configured through the UI.
 
 **qBittorrent instance fields:**
+
 - Label, URL, credentials
 - Download directory path
 - Tag names that indicate Radarr/Sonarr management (e.g. `radarr`, `sonarr`) — configurable per instance
 
 **Radarr/Sonarr instance fields:**
+
 - Label, URL, API key
 - Which qBittorrent instance it corresponds to
 
-Multiple *arr instances can point to the same qBittorrent instance. Scans run across all configured instances together.
+Multiple \*arr instances can point to the same qBittorrent instance. Scans run across all configured instances together.
 
 ---
 
@@ -48,7 +50,7 @@ Multiple *arr instances can point to the same qBittorrent instance. Scans run ac
 
 1. Fetch full library from all Radarr + Sonarr instances, persist relevant data to DB
 2. Fetch all torrents from all qBittorrent instances
-3. Fetch download history from all *arr instances
+3. Fetch download history from all \*arr instances
 4. Run detection logic across all four categories
 5. Write any newly detected items to the review queue (skip items already pending review or previously actioned)
 
@@ -57,16 +59,20 @@ Multiple *arr instances can point to the same qBittorrent instance. Scans run ac
 ## Detection Categories
 
 ### A — Orphaned files (no managing torrent)
+
 Files or directories present in the qBittorrent download dir that have no associated torrent in qBittorrent. Detected by scanning the download dir and diffing against known torrent content paths.
 
-### B — Tagged but *arr has no record
+### B — Tagged but \*arr has no record
+
 Torrent carries a `radarr`/`sonarr` tag but the corresponding *arr instance has no record of it anywhere (not in history, queue, or current library). Likely caused by a *arr database reset or manual tagging.
 
-### C — Item deleted from *arr
+### C — Item deleted from \*arr
+
 Torrent carries a `radarr`/`sonarr` tag, the *arr recognises the torrent in history, but the movie/series it belonged to no longer exists in the *arr library.
 
 ### D — Superseded by upgrade
-Torrent carries a `radarr`/`sonarr` tag, the *arr recognises it, the item still exists — but a newer import exists for the same movie/episode. This torrent is no longer the active file for that item.
+
+Torrent carries a `radarr`/`sonarr` tag, the \*arr recognises it, the item still exists — but a newer import exists for the same movie/episode. This torrent is no longer the active file for that item.
 
 ---
 
@@ -76,7 +82,7 @@ Torrent carries a `radarr`/`sonarr` tag, the *arr recognises it, the item still 
 - Each item displays:
   - Torrent name, size, category/tag
   - Detection category and the reason it was flagged (human-readable)
-  - Which qBittorrent / *arr instance it came from
+  - Which qBittorrent / \*arr instance it came from
   - Files that would be deleted
 - Per-item actions: **Approve** (remove torrent + delete files) or **Dismiss** (ignore this item, don't re-flag it in future scans)
 - Bulk approve/dismiss should be supported
@@ -86,6 +92,7 @@ Torrent carries a `radarr`/`sonarr` tag, the *arr recognises it, the item still 
 ## Audit Trail
 
 Every approval action is recorded with:
+
 - Timestamp
 - Torrent name + hash
 - Detection category that triggered it
@@ -101,7 +108,7 @@ Dismissals are also recorded so future scans can skip them.
 
 - `instances` — qBittorrent, Radarr, Sonarr configs
 - `scan_runs` — one record per scan execution, with status + timestamp
-- `library_snapshots` — persisted *arr library state per scan run
+- `library_snapshots` — persisted \*arr library state per scan run
 - `flagged_items` — detected items with category, reason, status (`pending` / `approved` / `dismissed`)
 - `audit_log` — append-only record of all approval actions
 
