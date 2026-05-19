@@ -4,7 +4,7 @@ import { getClients, type QBittorrentClientWithMeta, type ArrClientWithMeta } fr
 import { getApiV3Movie, getApiV3History } from "../lib/radarr/sdk.gen";
 import { getApiV3Series, getApiV3History as getSonarrHistory } from "../lib/sonarr/sdk.gen";
 import type { Torrent } from "@oof2win2/qbittorrent-api";
-import { readdir, stat, unlink } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { CROSS_SEED_CATEGORIES } from "../lib/constants";
 
@@ -24,6 +24,8 @@ interface CrossSeedMatch {
   hash: string;
   name: string;
 }
+
+export type { CrossSeedMatch };
 
 export async function runScan(triggeredBy: "manual" | "scheduled"): Promise<number> {
   const scanRun = await db
@@ -261,7 +263,7 @@ async function getTorrentFilePaths(
   }
 }
 
-async function getTorrentFileSizes(
+export async function getTorrentFileSizes(
   qbit: QBittorrentClientWithMeta,
   torrent: Torrent,
 ): Promise<number[]> {
@@ -286,7 +288,7 @@ function fileSizesSubset(subset: number[], superset: number[]): boolean {
   return true;
 }
 
-function matchCrossSeedPeers(
+export function matchCrossSeedPeers(
   torrentSizes: number[],
   crossSeedTorrents: Torrent[],
   crossSeedSizes: Map<string, number[]>,
@@ -587,86 +589,12 @@ export async function approveItem(itemId: number, triggeredBy: "manual" | "sched
 
   if (item.status !== "pending") throw new Error("Item is not pending");
 
-  const { qbitClients } = await getClients();
-  const qbit = qbitClients.find((c) => c.instance.id === item.qbittorrent_instance_id);
-  if (!qbit) throw new Error("qBittorrent instance not found");
-
-  const deletedHashes: string[] = [];
-  const deletedNames: string[] = [];
-
-  if (item.torrent_hash) {
-    const liveTorrents = await qbit.client.torrents.list();
-    const crossSeedTorrents = liveTorrents.filter((t) => CROSS_SEED_CATEGORIES.has(t.category));
-
-    const primaryTorrent = liveTorrents.find(
-      (t) => t.hash.toLowerCase() === item.torrent_hash!.toLowerCase(),
-    );
-
-    let livePeers: CrossSeedMatch[] = [];
-    if (primaryTorrent && crossSeedTorrents.length > 0) {
-      const primarySizes = await getTorrentFileSizes(qbit, primaryTorrent);
-      const csSizes = new Map<string, number[]>();
-      for (const cs of crossSeedTorrents) {
-        csSizes.set(cs.hash.toLowerCase(), await getTorrentFileSizes(qbit, cs));
-      }
-      livePeers = matchCrossSeedPeers(primarySizes, crossSeedTorrents, csSizes);
-    }
-
-    await db.deleteFrom("cross_seed_peers").where("flagged_item_id", "=", itemId).execute();
-    for (const peer of livePeers) {
-      await db
-        .insertInto("cross_seed_peers")
-        .values({
-          flagged_item_id: itemId,
-          torrent_hash: peer.hash,
-          torrent_name: peer.name,
-        })
-        .execute();
-    }
-
-    await qbit.client.torrents.delete(item.torrent_hash, false);
-    deletedHashes.push(item.torrent_hash);
-    deletedNames.push(item.torrent_name ?? "unknown");
-
-    for (const peer of livePeers) {
-      try {
-        await qbit.client.torrents.delete(peer.hash, false);
-        deletedHashes.push(peer.hash);
-        deletedNames.push(peer.name);
-      } catch {}
-    }
-
-    const files: string[] = item.files_to_delete ? JSON.parse(item.files_to_delete) : [];
-    for (const file of files) {
-      try {
-        await unlink(file);
-      } catch {}
-    }
-  } else {
-    const files: string[] = item.files_to_delete ? JSON.parse(item.files_to_delete) : [];
-    for (const file of files) {
-      try {
-        await unlink(file);
-      } catch {}
-    }
-  }
-
   await db
     .updateTable("flagged_items")
     .set({ status: "approved", approved_at: new Date().toISOString() })
     .where("id", "=", itemId)
     .execute();
 
-  await db
-    .insertInto("audit_log")
-    .values({
-      flagged_item_id: itemId,
-      scan_run_id: item.scan_run_id,
-      torrent_name: deletedNames.length > 0 ? JSON.stringify(deletedNames) : (item.torrent_name ?? "unknown"),
-      torrent_hash: deletedHashes.length > 0 ? JSON.stringify(deletedHashes) : (item.torrent_hash ?? "unknown"),
-      category: item.category,
-      files_deleted: item.files_to_delete ?? "[]",
-      triggered_by: triggeredBy,
-    })
-    .execute();
+  const { removalQueue } = await import("../lib/processing/queue");
+  await removalQueue.add("remove-torrent", { itemId, triggeredBy });
 }

@@ -3,6 +3,7 @@ import { restartWithConfig } from "./services/scheduler";
 import { db } from "./utils/db/index";
 import { sql } from "kysely";
 import indexHtml from "./frontend/index.html";
+import { removalQueue } from "./lib/processing/queue";
 
 async function ensureTables() {
   const tables = [
