@@ -1,4 +1,7 @@
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+
+const now = sql<string>`(datetime('now'))`;
 
 export const instances = sqliteTable("instances", {
   id: integer().primaryKey({ autoIncrement: true }),
@@ -12,16 +15,12 @@ export const instances = sqliteTable("instances", {
   radarr_tag: text().default("radarr"),
   sonarr_tag: text().default("sonarr"),
   linked_qbittorrent_id: integer(),
-  created_at: text()
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
+  created_at: text().notNull().default(now),
 });
 
 export const scanRuns = sqliteTable("scan_runs", {
   id: integer().primaryKey({ autoIncrement: true }),
-  started_at: text()
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
+  started_at: text().notNull().default(now),
   completed_at: text(),
   status: text({ enum: ["running", "completed", "failed"] })
     .notNull()
@@ -41,9 +40,7 @@ export const librarySnapshots = sqliteTable("library_snapshots", {
     .notNull()
     .references(() => instances.id, { onDelete: "cascade" }),
   data: text().notNull(),
-  created_at: text()
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
+  created_at: text().notNull().default(now),
 });
 
 export const flaggedItems = sqliteTable(
@@ -71,9 +68,7 @@ export const flaggedItems = sqliteTable(
       .default("pending"),
     dismissed_at: text(),
     approved_at: text(),
-    created_at: text()
-      .notNull()
-      .$defaultFn(() => new Date().toISOString()),
+    created_at: text().notNull().default(now),
   },
   (table) => [
     index("flagged_items_status_idx").on(table.status),
@@ -94,9 +89,7 @@ export const auditLog = sqliteTable("audit_log", {
   category: text().notNull(),
   files_deleted: text().notNull(),
   triggered_by: text().notNull(),
-  created_at: text()
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
+  created_at: text().notNull().default(now),
 });
 
 export const config = sqliteTable("config", {

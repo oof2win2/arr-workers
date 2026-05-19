@@ -41,14 +41,14 @@ export async function runScan(triggeredBy: "manual" | "scheduled"): Promise<numb
 
     const flags: PendingFlag[] = [];
 
-    for (const qbit of qbitClients) {
-      const qbitTorrents = allTorrents.filter((x) => x.qbit.instance.id === qbit.instance.id);
-      flags.push(
-        ...(await detectOrphanedFiles(
-          qbit,
-          qbitTorrents.map((x) => x.torrent),
-        )),
-      );
+    for (const _qbit of qbitClients) {
+      // const qbitTorrents = allTorrents.filter((x) => x.qbit.instance.id === _qbit.instance.id);
+      // flags.push(
+      //   ...(await detectOrphanedFiles(
+      //     qbit,
+      //     qbitTorrents.map((x) => x.torrent),
+      //   )),
+      // );
     }
 
     for (const radarr of radarrClients) {
@@ -236,13 +236,6 @@ async function detectArrIssues(
       ? (qbitInstance.radarr_tag ?? "radarr")
       : (qbitInstance.sonarr_tag ?? "sonarr");
 
-  const taggedTorrents = torrents.filter((t) => {
-    const tags = t.tags.split(",").map((x) => x.trim());
-    return tags.includes(tag);
-  });
-
-  if (taggedTorrents.length === 0) return flags;
-
   const library =
     arrType === "radarr"
       ? await fetchRadarrLibrary(arrClient.client)
@@ -254,6 +247,7 @@ async function detectArrIssues(
       : await fetchArrHistory(arrClient.client, getSonarrHistory);
 
   const itemIdKey = arrType === "radarr" ? "movieId" : "seriesId";
+  const subItemIdKey = arrType === "sonarr" ? "episodeId" : null;
   const importedEventTypes =
     arrType === "radarr"
       ? ["downloadFolderImported", "movieFolderImported"]
@@ -268,11 +262,17 @@ async function detectArrIssues(
     historyByDownloadId.set(dlId, arr);
   }
 
-  for (const torrent of taggedTorrents) {
-    const hash = torrent.hash.toLowerCase();
-    const histEntries = historyByDownloadId.get(hash);
+  const taggedHashes = new Set(
+    torrents.filter((t) => t.category === tag).map((t) => t.hash.toLowerCase()),
+  );
 
-    if (!histEntries || histEntries.length === 0) {
+  for (const torrent of torrents) {
+    const hash = torrent.hash.toLowerCase();
+    const isTagged = taggedHashes.has(hash);
+    const histEntries = historyByDownloadId.get(hash);
+    const isKnownToArr = histEntries && histEntries.length > 0;
+
+    if (isTagged && !isKnownToArr) {
       flags.push({
         category: "tagged_no_arr_record",
         reason: `Torrent "${torrent.name}" has "${tag}" tag but ${arrType} has no record of it`,
@@ -287,12 +287,15 @@ async function detectArrIssues(
       continue;
     }
 
-    const importedEntry = histEntries.find((h) =>
+    if (!isKnownToArr) continue;
+
+    const importedEntries = histEntries!.filter((h) =>
       importedEventTypes.includes(h.eventType as string),
     );
-    if (!importedEntry) continue;
+    if (importedEntries.length === 0) continue;
 
-    const itemId = importedEntry[itemIdKey] as number | undefined;
+    const sampleImport = importedEntries[0]!;
+    const itemId = sampleImport[itemIdKey] as number | undefined;
     if (!itemId) continue;
 
     if (!library.has(itemId)) {
@@ -314,12 +317,54 @@ async function detectArrIssues(
       (h) => h[itemIdKey] === itemId && importedEventTypes.includes(h.eventType as string),
     );
 
-    if (allImportsForItem.length > 1) {
-      const thisImport = histEntries.find((h) =>
-        importedEventTypes.includes(h.eventType as string),
-      );
-      if (!thisImport) continue;
+    if (allImportsForItem.length > 0 && subItemIdKey) {
+      const thisSubItemDates = new Map<number, Date>()
+      for (const h of importedEntries) {
+        const subId = h[subItemIdKey] as number | undefined
+        if (subId == null) continue
+        const d = new Date((h.date as string) ?? 0)
+        const existing = thisSubItemDates.get(subId)
+        if (!existing || d > existing) {
+          thisSubItemDates.set(subId, d)
+        }
+      }
 
+      const otherLatestBySubItem = new Map<number, Date>()
+      for (const h of allImportsForItem) {
+        const subId = h[subItemIdKey] as number | undefined
+        if (subId == null) continue
+        const dlId = (h.downloadId as string | null)?.toLowerCase()
+        if (dlId === hash) continue
+        const d = new Date((h.date as string) ?? 0)
+        const existing = otherLatestBySubItem.get(subId)
+        if (!existing || d > existing) {
+          otherLatestBySubItem.set(subId, d)
+        }
+      }
+
+      let allSuperseded = true
+      for (const [subId, thisDate] of thisSubItemDates) {
+        const otherDate = otherLatestBySubItem.get(subId)
+        if (!otherDate || otherDate <= thisDate) {
+          allSuperseded = false
+          break
+        }
+      }
+
+      if (allSuperseded && thisSubItemDates.size > 0 && otherLatestBySubItem.size > 0) {
+        flags.push({
+          category: "superseded",
+          reason: `Torrent "${torrent.name}" was superseded by newer imports for "${library.get(itemId)}"`,
+          torrent_hash: torrent.hash,
+          torrent_name: torrent.name,
+          torrent_size: torrent.size,
+          torrent_tags: torrent.tags,
+          files_to_delete: JSON.stringify([torrent.content_path]),
+          qbittorrent_instance_id: qbitInstance.id,
+          arr_instance_id: arrClient.instance.id,
+        });
+      }
+    } else if (allImportsForItem.length > 1) {
       const sortedByDate = [...allImportsForItem].sort(
         (a, b) =>
           new Date((a.date as string) ?? 0).getTime() - new Date((b.date as string) ?? 0).getTime(),
@@ -327,7 +372,7 @@ async function detectArrIssues(
       const latestImport = sortedByDate[sortedByDate.length - 1];
       if (!latestImport) continue;
 
-      const thisDate = new Date((thisImport.date as string) ?? 0);
+      const thisDate = new Date((sampleImport.date as string) ?? 0);
       const latestDate = new Date((latestImport.date as string) ?? 0);
 
       if (thisDate < latestDate) {
