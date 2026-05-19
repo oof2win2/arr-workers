@@ -2,6 +2,7 @@ import { Kysely } from "kysely";
 import type { DB } from "./types";
 import { createClient } from "@libsql/client";
 import { LibsqlDialect } from "kysely-libsql";
+import { SerializePlugin } from "kysely-plugin-serialize";
 
 export const db = new Kysely<DB>({
   dialect: new LibsqlDialect({

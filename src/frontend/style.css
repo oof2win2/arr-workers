@@ -219,6 +219,14 @@ button.success:hover {
   margin-bottom: 12px;
 }
 
+.card-cross-seed {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: rgba(108, 138, 255, 0.08);
+  border: 1px solid rgba(108, 138, 255, 0.15);
+}
+
 .card-actions {
   display: flex;
   gap: 8px;

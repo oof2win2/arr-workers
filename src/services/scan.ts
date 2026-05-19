@@ -4,8 +4,9 @@ import { getClients, type QBittorrentClientWithMeta, type ArrClientWithMeta } fr
 import { getApiV3Movie, getApiV3History } from "../lib/radarr/sdk.gen";
 import { getApiV3Series, getApiV3History as getSonarrHistory } from "../lib/sonarr/sdk.gen";
 import type { Torrent } from "@oof2win2/qbittorrent-api";
-import { readdir, stat } from "node:fs/promises";
+import { readdir, stat, unlink } from "node:fs/promises";
 import { join, basename } from "node:path";
+import { CROSS_SEED_CATEGORIES } from "../lib/constants";
 
 interface PendingFlag {
   category: FlaggedItem["category"];
@@ -17,6 +18,11 @@ interface PendingFlag {
   files_to_delete: string | null;
   qbittorrent_instance_id: number;
   arr_instance_id: number | null;
+}
+
+interface CrossSeedMatch {
+  hash: string;
+  name: string;
 }
 
 export async function runScan(triggeredBy: "manual" | "scheduled"): Promise<number> {
@@ -40,6 +46,23 @@ export async function runScan(triggeredBy: "manual" | "scheduled"): Promise<numb
     }
 
     const flags: PendingFlag[] = [];
+
+    const crossSeedByInstance = new Map<number, Torrent[]>();
+    const crossSeedSizesByInstance = new Map<number, Map<string, number[]>>();
+    for (const qbit of qbitClients) {
+      const csTorrents = allTorrents
+        .filter((x) => x.qbit.instance.id === qbit.instance.id)
+        .map((x) => x.torrent)
+        .filter((t) => CROSS_SEED_CATEGORIES.has(t.category));
+
+      crossSeedByInstance.set(qbit.instance.id, csTorrents);
+
+      const sizeMap = new Map<string, number[]>();
+      for (const cs of csTorrents) {
+        sizeMap.set(cs.hash.toLowerCase(), await getTorrentFileSizes(qbit, cs));
+      }
+      crossSeedSizesByInstance.set(qbit.instance.id, sizeMap);
+    }
 
     for (const _qbit of qbitClients) {
       // const qbitTorrents = allTorrents.filter((x) => x.qbit.instance.id === _qbit.instance.id);
@@ -95,7 +118,25 @@ export async function runScan(triggeredBy: "manual" | "scheduled"): Promise<numb
       const key = `${flag.torrent_hash}:${flag.category}`;
       if (dismissedSet.has(key) || pendingSet.has(key)) continue;
 
-      await db
+      let filesToDelete = flag.files_to_delete;
+      if (flag.torrent_hash) {
+        const qbit = qbitClients.find(
+          (c) => c.instance.id === flag.qbittorrent_instance_id,
+        );
+        if (qbit) {
+          const torrent = allTorrents.find(
+            (x) =>
+              x.torrent.hash.toLowerCase() === flag.torrent_hash!.toLowerCase() &&
+              x.qbit.instance.id === flag.qbittorrent_instance_id,
+          );
+          if (torrent) {
+            const paths = await getTorrentFilePaths(qbit, torrent.torrent);
+            filesToDelete = JSON.stringify(paths.length > 0 ? paths : [torrent.torrent.content_path]);
+          }
+        }
+      }
+
+      const inserted = await db
         .insertInto("flagged_items")
         .values({
           scan_run_id: scanRunId,
@@ -107,9 +148,81 @@ export async function runScan(triggeredBy: "manual" | "scheduled"): Promise<numb
           torrent_name: flag.torrent_name,
           torrent_size: flag.torrent_size,
           torrent_tags: flag.torrent_tags,
-          files_to_delete: flag.files_to_delete,
+          files_to_delete: filesToDelete,
         })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+
+      if (flag.torrent_hash) {
+        const crossSeedTorrents = crossSeedByInstance.get(flag.qbittorrent_instance_id) ?? [];
+        const crossSeedSizes = crossSeedSizesByInstance.get(flag.qbittorrent_instance_id);
+        if (crossSeedTorrents.length > 0 && crossSeedSizes) {
+          const torrent = allTorrents.find(
+            (x) =>
+              x.torrent.hash.toLowerCase() === flag.torrent_hash!.toLowerCase() &&
+              x.qbit.instance.id === flag.qbittorrent_instance_id,
+          );
+          if (torrent) {
+            const qbit = qbitClients.find((c) => c.instance.id === flag.qbittorrent_instance_id)!;
+            const torrentSizes = await getTorrentFileSizes(qbit, torrent.torrent);
+            const peers = matchCrossSeedPeers(torrentSizes, crossSeedTorrents, crossSeedSizes);
+            for (const peer of peers) {
+              await db
+                .insertInto("cross_seed_peers")
+                .values({
+                  flagged_item_id: inserted.id,
+                  torrent_hash: peer.hash,
+                  torrent_name: peer.name,
+                })
+                .execute();
+            }
+          }
+        }
+      }
+    }
+
+    const existingPending = await db
+      .selectFrom("flagged_items")
+      .where("status", "=", "pending")
+      .selectAll()
+      .execute();
+
+    for (const item of existingPending) {
+      if (!item.torrent_hash) continue;
+
+      const existingPeers = await db
+        .selectFrom("cross_seed_peers")
+        .where("flagged_item_id", "=", item.id)
+        .select(["id"])
         .execute();
+      if (existingPeers.length > 0) continue;
+
+      const crossSeedTorrents = crossSeedByInstance.get(item.qbittorrent_instance_id) ?? [];
+      const crossSeedSizes = crossSeedSizesByInstance.get(item.qbittorrent_instance_id);
+      if (crossSeedTorrents.length === 0 || !crossSeedSizes) continue;
+
+      const torrent = allTorrents.find(
+        (x) =>
+          x.torrent.hash.toLowerCase() === item.torrent_hash!.toLowerCase() &&
+          x.qbit.instance.id === item.qbittorrent_instance_id,
+      );
+      if (!torrent) continue;
+
+      const qbit = qbitClients.find(
+        (c) => c.instance.id === item.qbittorrent_instance_id,
+      )!;
+      const torrentSizes = await getTorrentFileSizes(qbit, torrent.torrent);
+      const peers = matchCrossSeedPeers(torrentSizes, crossSeedTorrents, crossSeedSizes);
+      for (const peer of peers) {
+        await db
+          .insertInto("cross_seed_peers")
+          .values({
+            flagged_item_id: item.id,
+            torrent_hash: peer.hash,
+            torrent_name: peer.name,
+          })
+          .execute();
+      }
     }
 
     await db
@@ -134,6 +247,77 @@ export async function runScan(triggeredBy: "manual" | "scheduled"): Promise<numb
   }
 
   return scanRunId;
+}
+
+async function getTorrentFilePaths(
+  qbit: QBittorrentClientWithMeta,
+  torrent: Torrent,
+): Promise<string[]> {
+  try {
+    const files = await qbit.client.torrents.getFiles(torrent.hash);
+    return files.map((f) => join(torrent.save_path, f.name));
+  } catch {
+    return [];
+  }
+}
+
+async function getTorrentFileSizes(
+  qbit: QBittorrentClientWithMeta,
+  torrent: Torrent,
+): Promise<number[]> {
+  try {
+    const files = await qbit.client.torrents.getFiles(torrent.hash);
+    return files.map((f) => f.size);
+  } catch {
+    return [];
+  }
+}
+
+function fileSizesSubset(subset: number[], superset: number[]): boolean {
+  if (subset.length === 0 || superset.length === 0) return false;
+  const available = [...superset].sort((a, b) => a - b);
+  const needed = [...subset].sort((a, b) => a - b);
+  let ai = 0;
+  for (const size of needed) {
+    while (ai < available.length && available[ai]! < size) ai++;
+    if (ai >= available.length || available[ai] !== size) return false;
+    ai++;
+  }
+  return true;
+}
+
+function matchCrossSeedPeers(
+  torrentSizes: number[],
+  crossSeedTorrents: Torrent[],
+  crossSeedSizes: Map<string, number[]>,
+): CrossSeedMatch[] {
+  if (torrentSizes.length === 0) return [];
+
+  const sortedPrimary = [...torrentSizes].sort((a, b) => a - b);
+  const peers: CrossSeedMatch[] = [];
+
+  for (const csTorrent of crossSeedTorrents) {
+    const csSizes = crossSeedSizes.get(csTorrent.hash.toLowerCase());
+    if (!csSizes || csSizes.length === 0) continue;
+
+    if (csSizes.length === sortedPrimary.length) {
+      const sorted = [...csSizes].sort((a, b) => a - b);
+      let exact = true;
+      for (let i = 0; i < sorted.length; i++) {
+        if (sorted[i] !== sortedPrimary[i]) { exact = false; break; }
+      }
+      if (exact) {
+        peers.push({ hash: csTorrent.hash, name: csTorrent.name });
+        continue;
+      }
+    }
+
+    if (fileSizesSubset(csSizes, torrentSizes)) {
+      peers.push({ hash: csTorrent.hash, name: csTorrent.name });
+    }
+  }
+
+  return peers;
 }
 
 async function detectOrphanedFiles(
@@ -407,12 +591,59 @@ export async function approveItem(itemId: number, triggeredBy: "manual" | "sched
   const qbit = qbitClients.find((c) => c.instance.id === item.qbittorrent_instance_id);
   if (!qbit) throw new Error("qBittorrent instance not found");
 
-  const files: string[] = item.files_to_delete ? JSON.parse(item.files_to_delete) : [];
+  const deletedHashes: string[] = [];
+  const deletedNames: string[] = [];
 
   if (item.torrent_hash) {
-    await qbit.client.torrents.delete(item.torrent_hash, true);
+    const liveTorrents = await qbit.client.torrents.list();
+    const crossSeedTorrents = liveTorrents.filter((t) => CROSS_SEED_CATEGORIES.has(t.category));
+
+    const primaryTorrent = liveTorrents.find(
+      (t) => t.hash.toLowerCase() === item.torrent_hash!.toLowerCase(),
+    );
+
+    let livePeers: CrossSeedMatch[] = [];
+    if (primaryTorrent && crossSeedTorrents.length > 0) {
+      const primarySizes = await getTorrentFileSizes(qbit, primaryTorrent);
+      const csSizes = new Map<string, number[]>();
+      for (const cs of crossSeedTorrents) {
+        csSizes.set(cs.hash.toLowerCase(), await getTorrentFileSizes(qbit, cs));
+      }
+      livePeers = matchCrossSeedPeers(primarySizes, crossSeedTorrents, csSizes);
+    }
+
+    await db.deleteFrom("cross_seed_peers").where("flagged_item_id", "=", itemId).execute();
+    for (const peer of livePeers) {
+      await db
+        .insertInto("cross_seed_peers")
+        .values({
+          flagged_item_id: itemId,
+          torrent_hash: peer.hash,
+          torrent_name: peer.name,
+        })
+        .execute();
+    }
+
+    await qbit.client.torrents.delete(item.torrent_hash, false);
+    deletedHashes.push(item.torrent_hash);
+    deletedNames.push(item.torrent_name ?? "unknown");
+
+    for (const peer of livePeers) {
+      try {
+        await qbit.client.torrents.delete(peer.hash, false);
+        deletedHashes.push(peer.hash);
+        deletedNames.push(peer.name);
+      } catch {}
+    }
+
+    const files: string[] = item.files_to_delete ? JSON.parse(item.files_to_delete) : [];
+    for (const file of files) {
+      try {
+        await unlink(file);
+      } catch {}
+    }
   } else {
-    const { unlink } = await import("node:fs/promises");
+    const files: string[] = item.files_to_delete ? JSON.parse(item.files_to_delete) : [];
     for (const file of files) {
       try {
         await unlink(file);
@@ -431,10 +662,10 @@ export async function approveItem(itemId: number, triggeredBy: "manual" | "sched
     .values({
       flagged_item_id: itemId,
       scan_run_id: item.scan_run_id,
-      torrent_name: item.torrent_name ?? "unknown",
-      torrent_hash: item.torrent_hash ?? "unknown",
+      torrent_name: deletedNames.length > 0 ? JSON.stringify(deletedNames) : (item.torrent_name ?? "unknown"),
+      torrent_hash: deletedHashes.length > 0 ? JSON.stringify(deletedHashes) : (item.torrent_hash ?? "unknown"),
       category: item.category,
-      files_deleted: JSON.stringify(files),
+      files_deleted: item.files_to_delete ?? "[]",
       triggered_by: triggeredBy,
     })
     .execute();

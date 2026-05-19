@@ -1,3 +1,8 @@
+export interface CrossSeedPeer {
+  torrent_hash: string;
+  torrent_name: string;
+}
+
 export interface FlaggedItem {
   id: number;
   scan_run_id: number;
@@ -14,6 +19,7 @@ export interface FlaggedItem {
   created_at: string;
   qbittorrent_instance?: { id: number; label: string; type: string };
   arr_instance?: { id: number; label: string; type: string } | null;
+  cross_seed_peers?: CrossSeedPeer[];
 }
 
 export interface Instance {

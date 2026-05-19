@@ -92,6 +92,16 @@ export const auditLog = sqliteTable("audit_log", {
   created_at: text().notNull().default(now),
 });
 
+export const crossSeedPeers = sqliteTable("cross_seed_peers", {
+  id: integer().primaryKey({ autoIncrement: true }),
+  flagged_item_id: integer()
+    .notNull()
+    .references(() => flaggedItems.id, { onDelete: "cascade" }),
+  torrent_hash: text().notNull(),
+  torrent_name: text().notNull(),
+  created_at: text().notNull().default(now),
+});
+
 export const config = sqliteTable("config", {
   key: text().primaryKey(),
   value: text().notNull(),

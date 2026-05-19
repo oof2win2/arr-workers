@@ -139,6 +139,18 @@ export function ReviewPage() {
                   ))}
                 </div>
               )}
+              {item.cross_seed_peers && item.cross_seed_peers.length > 0 && (
+                <div className="card-cross-seed">
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                    Also removes {item.cross_seed_peers.length} cross-seed torrent{item.cross_seed_peers.length !== 1 ? "s" : ""}:
+                  </div>
+                  {item.cross_seed_peers.map((peer, i) => (
+                    <div key={i} style={{ fontSize: 13, color: "var(--text-muted)", paddingLeft: 8 }}>
+                      {peer.torrent_name}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="card-actions">
                 <button className="success" onClick={() => approve(item.id)}>
                   Approve

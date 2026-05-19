@@ -106,11 +106,28 @@ export async function handleApi(req: Request, path: string): Promise<Response> {
         : [];
     const instanceMap = Object.fromEntries(instances.map((i) => [i.id, i]));
 
+    const itemIds = items.map((item) => item.id);
+    const peers =
+      itemIds.length > 0
+        ? await db
+            .selectFrom("cross_seed_peers")
+            .where("flagged_item_id", "in", itemIds)
+            .select(["flagged_item_id", "torrent_hash", "torrent_name"])
+            .execute()
+        : [];
+    const peersByItemId = new Map<number, { torrent_hash: string; torrent_name: string }[]>();
+    for (const p of peers) {
+      const arr = peersByItemId.get(p.flagged_item_id) ?? [];
+      arr.push({ torrent_hash: p.torrent_hash, torrent_name: p.torrent_name });
+      peersByItemId.set(p.flagged_item_id, arr);
+    }
+
     return json(
       items.map((item) => ({
         ...item,
         qbittorrent_instance: instanceMap[item.qbittorrent_instance_id],
         arr_instance: item.arr_instance_id ? instanceMap[item.arr_instance_id] : null,
+        cross_seed_peers: peersByItemId.get(item.id) ?? [],
       })),
     );
   }
