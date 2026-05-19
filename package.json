@@ -10,10 +10,11 @@
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.3",
     "@oof2win2/qbittorrent-api": "^0.0.2",
     "drizzle-orm": "^0.45.2",
     "kysely": "^0.29.2",
-    "kysely-bun-sqlite": "^0.4.0",
+    "kysely-libsql": "^0.7.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
