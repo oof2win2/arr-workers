@@ -1,15 +1,30 @@
 #!/bin/bash
+set -ex
+
 WORKDIR=/opt/cleanuparr
 GITDIR=/opt/cleanuparr-repo.git
+LOGFILE="$WORKDIR/deploy.log"
+
+exec > >(tee -a "$LOGFILE") 2>&1
+
+echo "=== Deploy $(date) ==="
 
 while read oldrev newrev ref; do
   if [[ "$ref" = "refs/heads/main" ]]; then
-    echo "Deploying..."
     GIT_WORK_TREE="$WORKDIR" git --git-dir="$GITDIR" checkout -f main
     cd "$WORKDIR"
-    bun install --production
+
+    echo "--- bun install ---"
+    bun install
+
+    echo "--- bun build ---"
     bun run build
+
+    echo "--- checking binary ---"
+    ls -la "$WORKDIR/cleanuparr" || { echo "BUILD FAILED: no binary found"; exit 1; }
+
+    echo "--- restarting ---"
     sudo systemctl restart cleanuparr
-    echo "Done."
+    echo "=== Done ==="
   fi
 done
