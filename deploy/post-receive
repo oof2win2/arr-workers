@@ -28,7 +28,7 @@ while read oldrev newrev ref; do
     }
 
     echo "--- restarting ---"
-    systemctl restart cleanuparr
+    sudo systemctl restart cleanuparr
     echo "=== Done ==="
   fi
 done
