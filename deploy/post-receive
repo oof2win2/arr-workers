@@ -1,0 +1,15 @@
+#!/bin/bash
+WORKDIR=/opt/cleanuparr
+GITDIR=/opt/cleanuparr-repo.git
+
+while read oldrev newrev ref; do
+  if [[ "$ref" = "refs/heads/main" ]]; then
+    echo "Deploying..."
+    GIT_WORK_TREE="$WORKDIR" git --git-dir="$GITDIR" checkout -f main
+    cd "$WORKDIR"
+    bun install --production
+    bun run build
+    sudo systemctl restart cleanuparr
+    echo "Done."
+  fi
+done

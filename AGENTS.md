@@ -77,7 +77,7 @@ drizzle.config.ts               # Drizzle Kit configuration (Turso dialect)
 
 - **`instances`** - qBittorrent, Radarr, Sonarr instance configs. Radarr/Sonarr link to a qBittorrent via `linked_qbittorrent_id`.
 - **`scan_runs`** - One record per scan execution (status: running/completed/failed).
-- **`library_snapshots`** - Persisted *arr library state per scan run.
+- **`library_snapshots`** - Persisted \*arr library state per scan run.
 - **`flagged_items`** - Detected items with category, reason, status (pending/approved/dismissed). Indexed on `status` and `scan_run_id`.
 - **`cross_seed_peers`** - Cross-seed torrent matches linked to flagged items (cascade delete).
 - **`audit_log`** - Append-only record of all approval actions.
@@ -87,30 +87,31 @@ drizzle.config.ts               # Drizzle Kit configuration (Turso dialect)
 
 All API routes are prefixed with `/api/`. All return JSON.
 
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET/POST | `/api/instances` | List/create instances |
-| GET/PUT/DELETE | `/api/instances/:id` | Get/update/delete instance |
-| GET/POST | `/api/scans` | List scan history / trigger manual scan |
-| GET | `/api/scans/latest` | Get latest scan |
-| GET | `/api/flagged-items` | List flagged items (optional `?status=` filter) |
-| POST | `/api/flagged-items/:id/approve` | Approve a flagged item (queues removal) |
-| POST | `/api/flagged-items/:id/dismiss` | Dismiss a flagged item |
-| POST | `/api/flagged-items/bulk-approve` | Bulk approve by `{ ids: number[] }` |
-| POST | `/api/flagged-items/bulk-dismiss` | Bulk dismiss by `{ ids: number[] }` |
-| GET | `/api/audit` | List audit log entries |
-| GET/PUT | `/api/config` | Get/update config (updates restart the scheduler) |
+| Method         | Route                             | Description                                       |
+| -------------- | --------------------------------- | ------------------------------------------------- |
+| GET/POST       | `/api/instances`                  | List/create instances                             |
+| GET/PUT/DELETE | `/api/instances/:id`              | Get/update/delete instance                        |
+| GET/POST       | `/api/scans`                      | List scan history / trigger manual scan           |
+| GET            | `/api/scans/latest`               | Get latest scan                                   |
+| GET            | `/api/flagged-items`              | List flagged items (optional `?status=` filter)   |
+| POST           | `/api/flagged-items/:id/approve`  | Approve a flagged item (queues removal)           |
+| POST           | `/api/flagged-items/:id/dismiss`  | Dismiss a flagged item                            |
+| POST           | `/api/flagged-items/bulk-approve` | Bulk approve by `{ ids: number[] }`               |
+| POST           | `/api/flagged-items/bulk-dismiss` | Bulk dismiss by `{ ids: number[] }`               |
+| GET            | `/api/audit`                      | List audit log entries                            |
+| GET/PUT        | `/api/config`                     | Get/update config (updates restart the scheduler) |
 
 ## Detection Categories
 
 1. **`orphaned_files`** - Files in qBittorrent download dir with no associated torrent. (Currently commented out in scan.ts)
-2. **`tagged_no_arr_record`** - Torrent has radarr/sonarr category tag but the *arr has no history record.
-3. **`arr_deleted`** - Torrent was imported by *arr, but the movie/series no longer exists in the library.
+2. **`tagged_no_arr_record`** - Torrent has radarr/sonarr category tag but the \*arr has no history record.
+3. **`arr_deleted`** - Torrent was imported by \*arr, but the movie/series no longer exists in the library.
 4. **`superseded`** - A newer import exists for the same movie/episode (this torrent is no longer the active file).
 
 ## Key Flows
 
 ### Scan Flow
+
 1. `runScan()` in `src/services/scan.ts` creates a `scan_runs` record
 2. Fetches all clients via `getClients()` (reads `instances` table)
 3. Fetches all torrents from all qBittorrent instances
@@ -122,6 +123,7 @@ All API routes are prefixed with `/api/`. All return JSON.
 9. Updates scan run status to completed/failed
 
 ### Removal Flow
+
 1. User approves item via API → `approveItem()` sets status to "approved"
 2. Job is added to `removalQueue` (Bunqueue)
 3. Queue processor deletes torrent + files from qBittorrent
@@ -145,6 +147,7 @@ All API routes are prefixed with `/api/`. All return JSON.
 ## Testing
 
 Use `bun test` with Bun's built-in test runner. Import from `bun:test`:
+
 ```ts
 import { test, expect } from "bun:test";
 ```

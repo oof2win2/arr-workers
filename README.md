@@ -7,8 +7,8 @@ A self-hosted web application that audits your qBittorrent instances against Rad
 - **Multi-instance support** — configure multiple qBittorrent, Radarr, and Sonarr instances
 - **Four detection categories**:
   - **Orphaned files** — files in the download dir with no managing torrent
-  - **No *arr record** — tagged torrent that the linked Radarr/Sonarr has no history of
-  - **Deleted from *arr** — torrent was imported, but the movie/series no longer exists in the library
+  - **No \*arr record** — tagged torrent that the linked Radarr/Sonarr has no history of
+  - **Deleted from \*arr** — torrent was imported, but the movie/series no longer exists in the library
   - **Superseded** — a newer quality import exists for the same movie/episode
 - **Cross-seed aware** — automatically detects and removes associated cross-seed peer torrents
 - **Review queue** — approve or dismiss flagged items individually or in bulk via the web UI
