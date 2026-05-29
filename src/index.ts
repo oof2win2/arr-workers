@@ -28,6 +28,7 @@ async function ensureTables() {
 }
 
 const PORT = Number(Bun.env.PORT ?? 3014);
+const BASE = (Bun.env.BASE_URL ?? "").replace(/\/$/, "");
 
 ensureTables().then(() => {
   restartWithConfig();
@@ -45,13 +46,27 @@ ensureTables().then(() => {
     },
     fetch(req) {
       const url = new URL(req.url);
-      if (url.pathname.startsWith("/api/")) {
-        return handleApi(req, url.pathname);
+      const path = url.pathname;
+
+      // Redirect /base → /base/ so relative asset paths resolve correctly
+      if (BASE && path === BASE) {
+        return Response.redirect(url.href + "/", 301);
       }
-      const file = Bun.file(`src/frontend${url.pathname}`);
-      return new Response(file);
+
+      // Strip base prefix for routed requests
+      if (BASE && path.startsWith(BASE + "/")) {
+        const stripped = path.slice(BASE.length) || "/";
+        if (stripped.startsWith("/api/")) {
+          return handleApi(req, stripped);
+        }
+        if (stripped === "/") {
+          return new Response(indexHtml);
+        }
+      }
+
+      return new Response("Not Found", { status: 404 });
     },
   });
 
-  console.log(`Cleanuparr running on http://localhost:${PORT}`);
+  console.log(`Cleanuparr running on http://localhost:${PORT}${BASE ? " (base: " + BASE + ")" : ""}`);
 });
