@@ -4,6 +4,7 @@
 
 - [ ] **Scan runs synchronously on API call**
   `POST /api/scans` blocks until the entire scan completes. For large libraries this could take minutes and timeout the HTTP request. The scan should run in the background and the API should return immediately with the `scan_runs` record (which it already creates with `"running"` status).
+  (see git stash)
 
 - [ ] **No protection against concurrent scans**
   There's no check if a scan is already running before starting a new one. Two overlapping scans would create duplicate flagged items and race on the DB. Add a guard in `runScan()`:
@@ -11,6 +12,10 @@
   const running = await db.selectFrom("scan_runs").where("status", "=", "running").select("id").executeTakeFirst();
   if (running) throw new Error("Scan already running");
   ```
+  (see git stash)
+
+- [ ] Deployment to server via git
+  Server has a git repo that I can push to, but deploying the server is currently an issue due to nginx (i think)
 
 - [ ] **No error handling in API routes**
   `handleApi()` has zero try/catch blocks. A DB error, invalid JSON body, or missing field returns an unhandled 500 with no useful message. Every route should be wrapped with error handling, or use a top-level catch that returns a proper JSON error response.
