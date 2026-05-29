@@ -36,36 +36,36 @@ ensureTables().then(() => {
   Bun.serve({
     port: PORT,
     routes: {
-      "/": indexHtml,
-      "/api/*": {
+      [BASE + "/"]: indexHtml,
+      [BASE + "/api/*"]: {
         GET: async (req) => handleApi(req, new URL(req.url).pathname),
         POST: async (req) => handleApi(req, new URL(req.url).pathname),
         PUT: async (req) => handleApi(req, new URL(req.url).pathname),
         DELETE: async (req) => handleApi(req, new URL(req.url).pathname),
       },
     },
-    fetch(req) {
-      const url = new URL(req.url);
-      const path = url.pathname;
+    // fetch(req) {
+    //   const url = new URL(req.url);
+    //   const path = url.pathname;
 
-      // Redirect /base → /base/ so relative asset paths resolve correctly
-      if (BASE && path === BASE) {
-        return Response.redirect(url.href + "/", 301);
-      }
+    //   // Redirect /base → /base/ so relative asset paths resolve correctly
+    //   if (BASE && path === BASE) {
+    //     return Response.redirect(url.href + "/", 301);
+    //   }
 
-      // Strip base prefix for routed requests
-      if (BASE && path.startsWith(BASE + "/")) {
-        const stripped = path.slice(BASE.length) || "/";
-        if (stripped.startsWith("/api/")) {
-          return handleApi(req, stripped);
-        }
-        if (stripped === "/") {
-          return indexHtml;
-        }
-      }
+    //   // Strip base prefix for routed requests
+    //   if (BASE && path.startsWith(BASE + "/")) {
+    //     const stripped = path.slice(BASE.length) || "/";
+    //     if (stripped.startsWith("/api/")) {
+    //       return handleApi(req, stripped);
+    //     }
+    //     if (stripped === "/") {
+    //       return new Response(indexHtml);
+    //     }
+    //   }
 
-      return new Response("Not Found", { status: 404 });
-    },
+    //   return new Response("Not Found", { status: 404 });
+    // },
   });
 
   console.log(`Cleanuparr running on http://localhost:${PORT}${BASE ? " (base: " + BASE + ")" : ""}`);
