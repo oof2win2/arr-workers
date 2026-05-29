@@ -60,7 +60,7 @@ ensureTables().then(() => {
           return handleApi(req, stripped);
         }
         if (stripped === "/") {
-          return new Response(indexHtml);
+          return indexHtml;
         }
       }
 
