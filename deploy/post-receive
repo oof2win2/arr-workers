@@ -1,6 +1,6 @@
 #!/bin/bash
 set -ex
-export PATH="/root/.bun/bin:$PATH"
+export PATH="$HOME/.bun/bin:$PATH"
 
 WORKDIR=/opt/cleanuparr
 GITDIR=/opt/cleanuparr-repo.git
@@ -19,7 +19,7 @@ while read oldrev newrev ref; do
     bun run build
 
     echo "--- run migrations ---"
-    bunx run drizzle-kit push
+    bunx drizzle-kit push
 
     echo "--- checking binary ---"
     ls -la "$WORKDIR/cleanuparr" || {
