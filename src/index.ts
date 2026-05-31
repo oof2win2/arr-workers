@@ -1,9 +1,10 @@
-import { handleApi } from "./routes/api";
+import { Hono } from "hono";
+import { api } from "./routes/api";
+import { pages } from "./routes/pages";
 import { restartWithConfig } from "./services/scheduler";
 import { db } from "./utils/db/index";
 import { sql } from "kysely";
-import indexHtml from "./frontend/index.html";
-import { removalQueue } from "./lib/processing/queue";
+import { PORT, BASE } from "./config";
 
 async function ensureTables() {
   const tables = [
@@ -27,46 +28,37 @@ async function ensureTables() {
   }
 }
 
-const PORT = Number(Bun.env.PORT ?? 3014);
-const BASE = (Bun.env.BASE_URL ?? "").replace(/\/$/, "");
+// Build all routes into a single app
+const app = new Hono().route("/", pages).route("/api", api);
 
 ensureTables().then(() => {
   restartWithConfig();
 
-  Bun.serve({
-    port: PORT,
-    routes: {
-      [BASE + "/"]: indexHtml,
-      [BASE + "/api/*"]: {
-        GET: async (req) => handleApi(req, new URL(req.url).pathname),
-        POST: async (req) => handleApi(req, new URL(req.url).pathname),
-        PUT: async (req) => handleApi(req, new URL(req.url).pathname),
-        DELETE: async (req) => handleApi(req, new URL(req.url).pathname),
-      },
-    },
-    // fetch(req) {
-    //   const url = new URL(req.url);
-    //   const path = url.pathname;
+  if (BASE) {
+    // With base path: strip prefix and dispatch to the route app
+    const baseApp = new Hono();
 
-    //   // Redirect /base → /base/ so relative asset paths resolve correctly
-    //   if (BASE && path === BASE) {
-    //     return Response.redirect(url.href + "/", 301);
-    //   }
+    // Redirect /base → /base/ for correct relative asset resolution
+    baseApp.get(BASE, (c) => c.redirect(BASE + "/", 301));
 
-    //   // Strip base prefix for routed requests
-    //   if (BASE && path.startsWith(BASE + "/")) {
-    //     const stripped = path.slice(BASE.length) || "/";
-    //     if (stripped.startsWith("/api/")) {
-    //       return handleApi(req, stripped);
-    //     }
-    //     if (stripped === "/") {
-    //       return new Response(indexHtml);
-    //     }
-    //   }
+    // Handle all requests under /base/
+    baseApp.all(BASE + "/*", async (c) => {
+      const url = new URL(c.req.url);
+      // Strip base prefix, ensure leading slash
+      const strippedPath = url.pathname.slice(BASE.length) || "/";
+      // Build new URL with stripped path
+      const newUrl = new URL(strippedPath + url.search, url.origin);
+      // Create a new request with the stripped path
+      const newReq = new Request(newUrl, c.req.raw);
+      return app.fetch(newReq);
+    });
 
-    //   return new Response("Not Found", { status: 404 });
-    // },
-  });
+    Bun.serve({ port: PORT, fetch: baseApp.fetch });
+  } else {
+    Bun.serve({ port: PORT, fetch: app.fetch });
+  }
 
-  console.log(`Cleanuparr running on http://localhost:${PORT}${BASE ? " (base: " + BASE + ")" : ""}`);
+  console.log(
+    `Cleanuparr running on http://localhost:${PORT}${BASE ? " (base: " + BASE + ")" : ""}`,
+  );
 });

@@ -1,38 +1,39 @@
-import React from "react";
-import { api } from "../lib";
+import type { FC } from "hono/jsx";
+import { db } from "../../utils/db/index";
+import { BASE } from "../../config";
 
-export function SettingsPage() {
-  const [cron, setCron] = React.useState("");
-  const [saved, setSaved] = React.useState(false);
-
-  React.useEffect(() => {
-    api.get<Record<string, string>>("/config").then((c) => setCron(c.scan_cron || "0 * * * *"));
-  }, []);
-
-  const save = async () => {
-    await api.put("/config", { scan_cron: cron });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
+export const SettingsPage: FC = async () => {
+  const entries = await db.selectFrom("config").selectAll().execute();
+  const config = Object.fromEntries(entries.map((e) => [e.key, e.value]));
+  const cron = config.scan_cron || "0 * * * *";
 
   return (
     <>
       <header>
         <h1>Settings</h1>
       </header>
-      <div className="card" style={{ maxWidth: 600 }}>
+      <div class="card" style={{ maxWidth: 600 }}>
         <h2>Scan Schedule</h2>
-        <div className="form-group">
-          <label>Cron Expression</label>
-          <input value={cron} onChange={(e) => setCron(e.target.value)} placeholder="0 * * * *" />
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
-            Default: hourly (0 * * * *)
+        <form id="settings-form">
+          <div class="form-group">
+            <label>Cron Expression</label>
+            <input name="scan_cron" value={cron} placeholder="0 * * * *" />
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+              Default: hourly (0 * * * *)
+            </div>
           </div>
-        </div>
-        <button className="primary" onClick={save}>
-          {saved ? "Saved" : "Save"}
+        </form>
+        <button
+          class="primary"
+          hx-put={`${BASE}/api/config`}
+          hx-include="#settings-form"
+          hx-target="#settings-status"
+          hx-swap="innerHTML"
+        >
+          Save
         </button>
+        <span id="settings-status" />
       </div>
     </>
   );
-}
+};

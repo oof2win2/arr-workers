@@ -1,13 +1,15 @@
-import React from "react";
-import { api, type AuditEntry, CATEGORY_LABELS } from "../lib";
+import type { FC } from "hono/jsx";
 import { Badge } from "../components/Badge";
+import { db } from "../../utils/db/index";
+import { CATEGORY_LABELS } from "../types";
 
-export function AuditPage() {
-  const [entries, setEntries] = React.useState<AuditEntry[]>([]);
-
-  React.useEffect(() => {
-    api.get<AuditEntry[]>("/audit").then(setEntries);
-  }, []);
+export const AuditPage: FC = async () => {
+  const entries = await db
+    .selectFrom("audit_log")
+    .selectAll()
+    .orderBy("id", "desc")
+    .limit(200)
+    .execute();
 
   return (
     <>
@@ -15,9 +17,9 @@ export function AuditPage() {
         <h1>Audit Log</h1>
       </header>
       {entries.length === 0 ? (
-        <div className="empty">No actions recorded yet</div>
+        <div class="empty">No actions recorded yet</div>
       ) : (
-        <div className="card">
+        <div class="card">
           <table>
             <thead>
               <tr>
@@ -37,21 +39,19 @@ export function AuditPage() {
                   files = [e.files_deleted];
                 }
                 return (
-                  <tr key={e.id}>
+                  <tr>
                     <td>{new Date(e.created_at).toLocaleString()}</td>
                     <td>{e.torrent_name}</td>
                     <td>
-                      <Badge className={e.category}>
-                        {CATEGORY_LABELS[e.category] || e.category}
-                      </Badge>
+                      <Badge class={e.category}>{CATEGORY_LABELS[e.category] || e.category}</Badge>
                     </td>
                     <td>{e.triggered_by}</td>
                     <td style={{ fontFamily: "monospace", fontSize: 12 }}>
                       {files.map((f, i) => (
-                        <React.Fragment key={i}>
+                        <>
                           {i > 0 && <br />}
                           {f}
-                        </React.Fragment>
+                        </>
                       ))}
                     </td>
                   </tr>
@@ -63,4 +63,4 @@ export function AuditPage() {
       )}
     </>
   );
-}
+};

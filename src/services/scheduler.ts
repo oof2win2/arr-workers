@@ -1,4 +1,4 @@
-import { runScan } from "./scan";
+import { startScan } from "./scan";
 import { db } from "../utils/db/index";
 import type { CronJob } from "bun";
 
@@ -20,7 +20,7 @@ export async function restartWithConfig() {
 
   job = Bun.cron(cron, async () => {
     try {
-      await runScan("scheduled");
+      await startScan("scheduled");
     } catch (err) {
       console.error("Scheduled scan failed:", err);
     }

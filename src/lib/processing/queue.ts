@@ -56,10 +56,7 @@ export const removalQueue = new Bunqueue<RemoveTorrentJob>("torrent-removal", {
             livePeers = matchCrossSeedPeers(primarySizes, crossSeedTorrents, csSizes);
           }
 
-          await db
-            .deleteFrom("cross_seed_peers")
-            .where("flagged_item_id", "=", itemId)
-            .execute();
+          await db.deleteFrom("cross_seed_peers").where("flagged_item_id", "=", itemId).execute();
           for (const peer of livePeers) {
             await db
               .insertInto("cross_seed_peers")
@@ -71,19 +68,19 @@ export const removalQueue = new Bunqueue<RemoveTorrentJob>("torrent-removal", {
               .execute();
           }
 
-          console.log(`Deleting ${item.torrent_name}`)
+          console.log(`Deleting ${item.torrent_name}`);
           await qbit.client.torrents.delete(item.torrent_hash, true);
           deletedHashes.push(item.torrent_hash);
           deletedNames.push(item.torrent_name ?? "unknown");
 
           for (const peer of livePeers) {
-            console.log(`Deleting ${peer.name}`)
+            console.log(`Deleting ${peer.name}`);
             try {
               await qbit.client.torrents.delete(peer.hash, true);
               deletedHashes.push(peer.hash);
               deletedNames.push(peer.name);
             } catch (e) {
-              console.error(e)
+              console.error(e);
             }
           }
         }

@@ -14,19 +14,17 @@
   },
   "dependencies": {
     "@libsql/client": "^0.17.3",
-    "@oof2win2/qbittorrent-api": "^0.0.2",
+    "@oof2win2/qbittorrent-api": "^0.0.3",
     "bunqueue": "^2.7.14",
     "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.23",
     "kysely": "^0.29.2",
     "kysely-libsql": "^0.7.1",
     "kysely-plugin-serialize": "^0.8.2",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "typed-htmx": "^0.3.1"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
     "drizzle-kit": "^0.31.10",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.66.0"

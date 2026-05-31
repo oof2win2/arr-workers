@@ -1,5 +1,5 @@
-import React from "react";
+import type { FC } from "hono/jsx";
 
-export function Badge({ className, children }: { className: string; children: React.ReactNode }) {
-  return <span className={`badge ${className}`}>{children}</span>;
-}
+export const Badge: FC<{ class: string; children: string }> = ({ class: className, children }) => {
+  return <span class={`badge ${className}`}>{children}</span>;
+};

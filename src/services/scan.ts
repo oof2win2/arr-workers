@@ -27,15 +27,20 @@ interface CrossSeedMatch {
 
 export type { CrossSeedMatch };
 
-export async function runScan(triggeredBy: "manual" | "scheduled"): Promise<number> {
+export async function startScan(triggeredBy: "manual" | "scheduled"): Promise<number> {
   const scanRun = await db
     .insertInto("scan_runs")
     .values({ status: "running", triggered_by: triggeredBy })
     .returning("id")
     .executeTakeFirstOrThrow();
 
-  const scanRunId = scanRun.id;
+  // Fire and forget — the scan runs in the background
+  runScan(scanRun.id).catch(() => {});
 
+  return scanRun.id;
+}
+
+async function runScan(scanRunId: number): Promise<void> {
   try {
     const { qbitClients, radarrClients, sonarrClients } = await getClients();
 
@@ -122,9 +127,7 @@ export async function runScan(triggeredBy: "manual" | "scheduled"): Promise<numb
 
       let filesToDelete = flag.files_to_delete;
       if (flag.torrent_hash) {
-        const qbit = qbitClients.find(
-          (c) => c.instance.id === flag.qbittorrent_instance_id,
-        );
+        const qbit = qbitClients.find((c) => c.instance.id === flag.qbittorrent_instance_id);
         if (qbit) {
           const torrent = allTorrents.find(
             (x) =>
@@ -133,7 +136,9 @@ export async function runScan(triggeredBy: "manual" | "scheduled"): Promise<numb
           );
           if (torrent) {
             const paths = await getTorrentFilePaths(qbit, torrent.torrent);
-            filesToDelete = JSON.stringify(paths.length > 0 ? paths : [torrent.torrent.content_path]);
+            filesToDelete = JSON.stringify(
+              paths.length > 0 ? paths : [torrent.torrent.content_path],
+            );
           }
         }
       }
@@ -210,9 +215,7 @@ export async function runScan(triggeredBy: "manual" | "scheduled"): Promise<numb
       );
       if (!torrent) continue;
 
-      const qbit = qbitClients.find(
-        (c) => c.instance.id === item.qbittorrent_instance_id,
-      )!;
+      const qbit = qbitClients.find((c) => c.instance.id === item.qbittorrent_instance_id)!;
       const torrentSizes = await getTorrentFileSizes(qbit, torrent.torrent);
       const peers = matchCrossSeedPeers(torrentSizes, crossSeedTorrents, crossSeedSizes);
       for (const peer of peers) {
@@ -247,8 +250,6 @@ export async function runScan(triggeredBy: "manual" | "scheduled"): Promise<numb
       .where("id", "=", scanRunId)
       .execute();
   }
-
-  return scanRunId;
 }
 
 async function getTorrentFilePaths(
@@ -306,7 +307,10 @@ export function matchCrossSeedPeers(
       const sorted = [...csSizes].sort((a, b) => a - b);
       let exact = true;
       for (let i = 0; i < sorted.length; i++) {
-        if (sorted[i] !== sortedPrimary[i]) { exact = false; break; }
+        if (sorted[i] !== sortedPrimary[i]) {
+          exact = false;
+          break;
+        }
       }
       if (exact) {
         peers.push({ hash: csTorrent.hash, name: csTorrent.name });
@@ -504,36 +508,36 @@ async function detectArrIssues(
     );
 
     if (allImportsForItem.length > 0 && subItemIdKey) {
-      const thisSubItemDates = new Map<number, Date>()
+      const thisSubItemDates = new Map<number, Date>();
       for (const h of importedEntries) {
-        const subId = h[subItemIdKey] as number | undefined
-        if (subId == null) continue
-        const d = new Date((h.date as string) ?? 0)
-        const existing = thisSubItemDates.get(subId)
+        const subId = h[subItemIdKey] as number | undefined;
+        if (subId == null) continue;
+        const d = new Date((h.date as string) ?? 0);
+        const existing = thisSubItemDates.get(subId);
         if (!existing || d > existing) {
-          thisSubItemDates.set(subId, d)
+          thisSubItemDates.set(subId, d);
         }
       }
 
-      const otherLatestBySubItem = new Map<number, Date>()
+      const otherLatestBySubItem = new Map<number, Date>();
       for (const h of allImportsForItem) {
-        const subId = h[subItemIdKey] as number | undefined
-        if (subId == null) continue
-        const dlId = (h.downloadId as string | null)?.toLowerCase()
-        if (dlId === hash) continue
-        const d = new Date((h.date as string) ?? 0)
-        const existing = otherLatestBySubItem.get(subId)
+        const subId = h[subItemIdKey] as number | undefined;
+        if (subId == null) continue;
+        const dlId = (h.downloadId as string | null)?.toLowerCase();
+        if (dlId === hash) continue;
+        const d = new Date((h.date as string) ?? 0);
+        const existing = otherLatestBySubItem.get(subId);
         if (!existing || d > existing) {
-          otherLatestBySubItem.set(subId, d)
+          otherLatestBySubItem.set(subId, d);
         }
       }
 
-      let allSuperseded = true
+      let allSuperseded = true;
       for (const [subId, thisDate] of thisSubItemDates) {
-        const otherDate = otherLatestBySubItem.get(subId)
+        const otherDate = otherLatestBySubItem.get(subId);
         if (!otherDate || otherDate <= thisDate) {
-          allSuperseded = false
-          break
+          allSuperseded = false;
+          break;
         }
       }
 

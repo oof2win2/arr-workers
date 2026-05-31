@@ -1,61 +1,38 @@
-import React from "react";
-import { api, type Instance } from "../lib";
+import type { FC } from "hono/jsx";
+import { db } from "../../utils/db/index";
+import type { Instance } from "../types";
+import { BASE } from "../../config";
 
-export function InstancesPage() {
-  const [instances, setInstances] = React.useState<Instance[]>([]);
-  const [showForm, setShowForm] = React.useState(false);
-  const [editId, setEditId] = React.useState<number | null>(null);
+async function getInstances() {
+  return db.selectFrom("instances").selectAll().orderBy("id").execute();
+}
 
-  const load = React.useCallback(async () => {
-    setInstances(await api.get<Instance[]>("/instances"));
-  }, []);
-
-  React.useEffect(() => {
-    load();
-  }, [load]);
-
-  const deleteInstance = async (id: number) => {
-    if (confirm("Delete this instance?")) {
-      await api.del(`/instances/${id}`);
-      load();
-    }
-  };
-
-  const qbits = instances.filter((i) => i.type === "qbittorrent");
-  const arrs = instances.filter((i) => i.type !== "qbittorrent");
+export const InstancesPage: FC = async () => {
+  const instances = await getInstances();
+  const qbits = instances.filter((i) => i.type === "qbittorrent") as Instance[];
+  const arrs = instances.filter((i) => i.type !== "qbittorrent") as Instance[];
 
   return (
     <>
       <header>
         <h1>Instances</h1>
         <button
-          className="primary"
-          onClick={() => {
-            setEditId(null);
-            setShowForm(true);
-          }}
+          class="primary"
+          hx-get={`${BASE}/instances/form`}
+          hx-target="#instance-form-area"
+          hx-swap="innerHTML"
         >
           Add Instance
         </button>
       </header>
 
-      {showForm && (
-        <InstanceForm
-          id={editId}
-          instances={instances}
-          onSave={() => {
-            setShowForm(false);
-            load();
-          }}
-          onCancel={() => setShowForm(false)}
-        />
-      )}
+      <div id="instance-form-area" />
 
       <h2>qBittorrent</h2>
       {qbits.length === 0 ? (
-        <div className="empty">No qBittorrent instances configured</div>
+        <div class="empty">No qBittorrent instances configured</div>
       ) : (
-        <div className="card">
+        <div class="card">
           <table>
             <thead>
               <tr>
@@ -69,7 +46,7 @@ export function InstancesPage() {
             </thead>
             <tbody>
               {qbits.map((i) => (
-                <tr key={i.id}>
+                <tr id={`instance-row-${i.id}`}>
                   <td>{i.label}</td>
                   <td>{i.url}</td>
                   <td style={{ fontFamily: "monospace", fontSize: 13 }}>{i.download_dir || "-"}</td>
@@ -77,14 +54,19 @@ export function InstancesPage() {
                   <td>{i.sonarr_tag || "sonarr"}</td>
                   <td>
                     <button
-                      onClick={() => {
-                        setEditId(i.id);
-                        setShowForm(true);
-                      }}
+                      hx-get={`${BASE}/instances/form?id=${i.id}`}
+                      hx-target="#instance-form-area"
+                      hx-swap="innerHTML"
                     >
                       Edit
                     </button>{" "}
-                    <button className="danger" onClick={() => deleteInstance(i.id)}>
+                    <button
+                      class="danger"
+                      hx-delete={`${BASE}/api/instances/${i.id}`}
+                      hx-confirm="Delete this instance?"
+                      hx-target="closest tr"
+                      hx-swap="outerHTML swap:0.5s"
+                    >
                       Delete
                     </button>
                   </td>
@@ -97,9 +79,9 @@ export function InstancesPage() {
 
       <h2 style={{ marginTop: 32 }}>Radarr / Sonarr</h2>
       {arrs.length === 0 ? (
-        <div className="empty">No Radarr/Sonarr instances configured</div>
+        <div class="empty">No Radarr/Sonarr instances configured</div>
       ) : (
-        <div className="card">
+        <div class="card">
           <table>
             <thead>
               <tr>
@@ -112,21 +94,26 @@ export function InstancesPage() {
             </thead>
             <tbody>
               {arrs.map((i) => (
-                <tr key={i.id}>
+                <tr id={`instance-row-${i.id}`}>
                   <td>{i.label}</td>
                   <td>{i.type}</td>
                   <td>{i.url}</td>
                   <td>{qbits.find((q) => q.id === i.linked_qbittorrent_id)?.label || "Unknown"}</td>
                   <td>
                     <button
-                      onClick={() => {
-                        setEditId(i.id);
-                        setShowForm(true);
-                      }}
+                      hx-get={`${BASE}/instances/form?id=${i.id}`}
+                      hx-target="#instance-form-area"
+                      hx-swap="innerHTML"
                     >
                       Edit
                     </button>{" "}
-                    <button className="danger" onClick={() => deleteInstance(i.id)}>
+                    <button
+                      class="danger"
+                      hx-delete={`${BASE}/api/instances/${i.id}`}
+                      hx-confirm="Delete this instance?"
+                      hx-target="closest tr"
+                      hx-swap="outerHTML swap:0.5s"
+                    >
                       Delete
                     </button>
                   </td>
@@ -138,126 +125,133 @@ export function InstancesPage() {
       )}
     </>
   );
-}
+};
 
-function InstanceForm({
-  id,
-  instances,
-  onSave,
-  onCancel,
-}: {
-  id: number | null;
-  instances: Instance[];
-  onSave: () => void;
-  onCancel: () => void;
-}) {
-  const isEdit = id !== null;
-  const qbits = instances.filter((i) => i.type === "qbittorrent");
-  const existing = isEdit ? instances.find((i) => i.id === id) : null;
+export const InstanceForm: FC<{ id?: string }> = async ({ id }) => {
+  const isEdit = id !== undefined;
+  const instances = await getInstances();
+  const qbits = instances.filter((i) => i.type === "qbittorrent") as Instance[];
+  const existing = isEdit ? instances.find((i) => i.id === Number(id)) : null;
 
-  const [type, setType] = React.useState<Instance["type"]>(existing?.type ?? "qbittorrent");
-  const [label, setLabel] = React.useState(existing?.label ?? "");
-  const [url, setUrl] = React.useState(existing?.url ?? "");
-  const [username, setUsername] = React.useState(existing?.username ?? "");
-  const [password, setPassword] = React.useState(existing?.password ?? "");
-  const [downloadDir, setDownloadDir] = React.useState(existing?.download_dir ?? "");
-  const [radarrTag, setRadarrTag] = React.useState(existing?.radarr_tag ?? "radarr");
-  const [sonarrTag, setSonarrTag] = React.useState(existing?.sonarr_tag ?? "sonarr");
-  const [apiKey, setApiKey] = React.useState(existing?.api_key ?? "");
-  const [linkedQbit, setLinkedQbit] = React.useState<string>(
-    String(existing?.linked_qbittorrent_id ?? ""),
-  );
-
-  const save = async () => {
-    const body: Record<string, unknown> = { type, label, url };
-    if (type === "qbittorrent") {
-      body.username = username;
-      body.password = password;
-      body.download_dir = downloadDir;
-      body.radarr_tag = radarrTag || "radarr";
-      body.sonarr_tag = sonarrTag || "sonarr";
-    } else {
-      body.api_key = apiKey;
-      body.linked_qbittorrent_id = linkedQbit ? Number(linkedQbit) : null;
-    }
-    if (isEdit) await api.put(`/instances/${id}`, body);
-    else await api.post("/instances", body);
-    onSave();
-  };
+  const type = existing?.type ?? "qbittorrent";
+  const label = existing?.label ?? "";
+  const url = existing?.url ?? "";
+  const username = existing?.username ?? "";
+  const downloadDir = existing?.download_dir ?? "";
+  const radarrTag = existing?.radarr_tag ?? "radarr";
+  const sonarrTag = existing?.sonarr_tag ?? "sonarr";
+  const apiKey = existing?.api_key ?? "";
+  const linkedQbit = existing?.linked_qbittorrent_id ?? "";
 
   return (
-    <div className="card" style={{ maxWidth: 600 }}>
+    <div class="card" style={{ maxWidth: 600 }}>
       <h2>{isEdit ? "Edit" : "Add"} Instance</h2>
-      <div className="form-group">
-        <label>Type</label>
-        <select value={type} onChange={(e) => setType(e.target.value as Instance["type"])}>
-          <option value="qbittorrent">qBittorrent</option>
-          <option value="radarr">Radarr</option>
-          <option value="sonarr">Sonarr</option>
-        </select>
-      </div>
-      <div className="form-group">
-        <label>Label</label>
-        <input value={label} onChange={(e) => setLabel(e.target.value)} />
-      </div>
-      <div className="form-group">
-        <label>URL</label>
-        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://..." />
-      </div>
+      <form
+        hx-post={isEdit ? `${BASE}/api/instances/${id}` : `${BASE}/api/instances`}
+        hx-encoding="multipart/form-data"
+        hx-target="#instance-form-area"
+        hx-swap="innerHTML"
+        {...(isEdit ? { "hx-put": `${BASE}/api/instances/${id}` } : {})}
+      >
+        <div class="form-group">
+          <label>Type</label>
+          <select
+            name="type"
+            hx-get={`${BASE}/instances/form-type`}
+            hx-target="#type-fields"
+            hx-swap="innerHTML"
+            hx-include="[name='type']"
+          >
+            <option value="qbittorrent" selected={type === "qbittorrent"}>
+              qBittorrent
+            </option>
+            <option value="radarr" selected={type === "radarr"}>
+              Radarr
+            </option>
+            <option value="sonarr" selected={type === "sonarr"}>
+              Sonarr
+            </option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Label</label>
+          <input name="label" value={label} />
+        </div>
+        <div class="form-group">
+          <label>URL</label>
+          <input name="url" value={url} placeholder="http://..." />
+        </div>
 
-      {type === "qbittorrent" ? (
-        <>
-          <div className="form-group">
-            <label>Username</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label>Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label>Download Directory</label>
-            <input
-              value={downloadDir}
-              onChange={(e) => setDownloadDir(e.target.value)}
-              placeholder="/path/to/downloads"
-            />
-          </div>
-          <div className="form-group">
-            <label>Radarr Tag</label>
-            <input value={radarrTag} onChange={(e) => setRadarrTag(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label>Sonarr Tag</label>
-            <input value={sonarrTag} onChange={(e) => setSonarrTag(e.target.value)} />
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="form-group">
-            <label>API Key</label>
-            <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label>Linked qBittorrent</label>
-            <select value={linkedQbit} onChange={(e) => setLinkedQbit(e.target.value)}>
-              <option value="">Select...</option>
-              {qbits.map((q) => (
-                <option key={q.id} value={q.id}>
-                  {q.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </>
-      )}
+        <div id="type-fields">
+          {type === "qbittorrent" ? (
+            <>
+              <div class="form-group">
+                <label>Username</label>
+                <input name="username" value={username} />
+              </div>
+              <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" />
+              </div>
+              <div class="form-group">
+                <label>Download Directory</label>
+                <input name="download_dir" value={downloadDir} placeholder="/path/to/downloads" />
+              </div>
+              <div class="form-group">
+                <label>Radarr Tag</label>
+                <input name="radarr_tag" value={radarrTag} />
+              </div>
+              <div class="form-group">
+                <label>Sonarr Tag</label>
+                <input name="sonarr_tag" value={sonarrTag} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div class="form-group">
+                <label>API Key</label>
+                <input name="api_key" value={apiKey} />
+              </div>
+              <div class="form-group">
+                <label>Linked qBittorrent</label>
+                <select name="linked_qbittorrent_id">
+                  <option value="">Select...</option>
+                  {qbits.map((q) => (
+                    <option value={String(q.id)} selected={linkedQbit === q.id}>
+                      {q.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+        </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
-        <button className="primary" onClick={save}>
-          Save
-        </button>
-        <button onClick={onCancel}>Cancel</button>
-      </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+          <button class="primary" type="submit">
+            Save
+          </button>
+          <button
+            type="button"
+            onclick="document.getElementById('instance-form-area').innerHTML=''"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
     </div>
   );
-}
+};
+
+export const InstanceSaved: FC = async () => {
+  return (
+    <div class="card" style={{ maxWidth: 600, borderColor: "var(--success)" }}>
+      <p style={{ color: "var(--success)", marginBottom: 8 }}>
+        Instance saved. Refresh the page to see updated tables.
+      </p>
+      <button onclick="document.getElementById('instance-form-area').innerHTML=''; location.reload();">
+        OK
+      </button>
+    </div>
+  );
+};

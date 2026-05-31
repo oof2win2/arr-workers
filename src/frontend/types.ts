@@ -72,23 +72,3 @@ export function formatBytes(bytes: number | null) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
-
-const API = "/api";
-
-export const api = {
-  get: <T = unknown>(path: string): Promise<T> => fetch(`${API}${path}`).then((r) => r.json()),
-  post: <T = unknown>(path: string, body?: unknown): Promise<T> =>
-    fetch(`${API}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-    }).then((r) => r.json()),
-  put: <T = unknown>(path: string, body?: unknown): Promise<T> =>
-    fetch(`${API}${path}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-    }).then((r) => r.json()),
-  del: <T = unknown>(path: string): Promise<T> =>
-    fetch(`${API}${path}`, { method: "DELETE" }).then((r) => r.json()),
-};
