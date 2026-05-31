@@ -7,6 +7,7 @@ import type { Torrent } from "@oof2win2/qbittorrent-api";
 import { readdir, stat } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { CROSS_SEED_CATEGORIES } from "../lib/constants";
+import { scanQueue } from "../lib/processing/scan-queue";
 
 interface PendingFlag {
   category: FlaggedItem["category"];
@@ -34,13 +35,15 @@ export async function startScan(triggeredBy: "manual" | "scheduled"): Promise<nu
     .returning("id")
     .executeTakeFirstOrThrow();
 
-  // Fire and forget — the scan runs in the background
-  runScan(scanRun.id).catch(() => {});
+  await scanQueue.add("scan", {
+    scanRunId: scanRun.id,
+    triggeredBy,
+  });
 
   return scanRun.id;
 }
 
-async function runScan(scanRunId: number): Promise<void> {
+export async function runScan(scanRunId: number): Promise<void> {
   try {
     const { qbitClients, radarrClients, sonarrClients } = await getClients();
 
