@@ -1,5 +1,6 @@
 import { startScan } from "./scan";
 import { db } from "../utils/db/index";
+import { logger } from "../lib/logger";
 import type { CronJob } from "bun";
 
 let job: CronJob | null = null;
@@ -22,9 +23,11 @@ export async function restartWithConfig() {
     try {
       await startScan("scheduled");
     } catch (err) {
-      console.error("Scheduled scan failed:", err);
+      logger.error({ err }, "Scheduled scan failed");
     }
   });
+
+  logger.info({ cron }, "Scheduler configured");
 }
 
 export function stopScheduler() {

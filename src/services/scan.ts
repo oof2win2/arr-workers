@@ -7,6 +7,7 @@ import type { Torrent } from "@oof2win2/qbittorrent-api";
 import { readdir, stat } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { CROSS_SEED_CATEGORIES } from "../lib/constants";
+import { logger } from "../lib/logger";
 import { scanQueue } from "../lib/processing/scan-queue";
 
 interface PendingFlag {
@@ -35,6 +36,8 @@ export async function startScan(triggeredBy: "manual" | "scheduled"): Promise<nu
     .returning("id")
     .executeTakeFirstOrThrow();
 
+  logger.info({ scanRunId: scanRun.id, triggeredBy }, "Scan queued");
+
   await scanQueue.add("scan", {
     scanRunId: scanRun.id,
     triggeredBy,
@@ -44,16 +47,31 @@ export async function startScan(triggeredBy: "manual" | "scheduled"): Promise<nu
 }
 
 export async function runScan(scanRunId: number): Promise<void> {
+  logger.info({ scanRunId }, "Scan started");
   try {
     const { qbitClients, radarrClients, sonarrClients } = await getClients();
+    logger.info(
+      {
+        scanRunId,
+        qbitCount: qbitClients.length,
+        radarrCount: radarrClients.length,
+        sonarrCount: sonarrClients.length,
+      },
+      "Clients loaded",
+    );
 
     const allTorrents: { torrent: Torrent; qbit: QBittorrentClientWithMeta }[] = [];
     for (const qbit of qbitClients) {
       const torrents = await qbit.client.torrents.list();
+      logger.debug(
+        { scanRunId, instance: qbit.instance.name, torrentCount: torrents.length },
+        "Fetched torrents from qBittorrent",
+      );
       for (const t of torrents) {
         allTorrents.push({ torrent: t, qbit });
       }
     }
+    logger.info({ scanRunId, totalTorrents: allTorrents.length }, "All torrents fetched");
 
     const flags: PendingFlag[] = [];
 
@@ -87,6 +105,10 @@ export async function runScan(scanRunId: number): Promise<void> {
     for (const radarr of radarrClients) {
       const qbitInst = radarr.qbittorrentInstance;
       const qbitTorrents = allTorrents.filter((x) => x.qbit.instance.id === qbitInst.id);
+      logger.debug(
+        { scanRunId, radarr: radarr.instance.name, torrents: qbitTorrents.length },
+        "Detecting Radarr issues",
+      );
       flags.push(
         ...(await detectArrIssues(
           qbitTorrents.map((x) => x.torrent),
@@ -100,6 +122,10 @@ export async function runScan(scanRunId: number): Promise<void> {
     for (const sonarr of sonarrClients) {
       const qbitInst = sonarr.qbittorrentInstance;
       const qbitTorrents = allTorrents.filter((x) => x.qbit.instance.id === qbitInst.id);
+      logger.debug(
+        { scanRunId, sonarr: sonarr.instance.name, torrents: qbitTorrents.length },
+        "Detecting Sonarr issues",
+      );
       flags.push(
         ...(await detectArrIssues(
           qbitTorrents.map((x) => x.torrent),
@@ -109,6 +135,8 @@ export async function runScan(scanRunId: number): Promise<void> {
         )),
       );
     }
+
+    logger.info({ scanRunId, flagsDetected: flags.length }, "Detection complete");
 
     const dismissed = await db
       .selectFrom("flagged_items")
@@ -124,6 +152,7 @@ export async function runScan(scanRunId: number): Promise<void> {
       .execute();
     const pendingSet = new Set(pending.map((p) => `${p.torrent_hash}:${p.category}`));
 
+    let insertedCount = 0;
     for (const flag of flags) {
       const key = `${flag.torrent_hash}:${flag.category}`;
       if (dismissedSet.has(key) || pendingSet.has(key)) continue;
@@ -162,6 +191,7 @@ export async function runScan(scanRunId: number): Promise<void> {
         })
         .returning("id")
         .executeTakeFirstOrThrow();
+      insertedCount++;
 
       if (flag.torrent_hash) {
         const crossSeedTorrents = crossSeedByInstance.get(flag.qbittorrent_instance_id) ?? [];
@@ -242,7 +272,12 @@ export async function runScan(scanRunId: number): Promise<void> {
       })
       .where("id", "=", scanRunId)
       .execute();
+    logger.info(
+      { scanRunId, flagsDetected: flags.length, inserted: insertedCount },
+      "Scan completed",
+    );
   } catch (err) {
+    logger.error({ scanRunId, err }, "Scan failed");
     await db
       .updateTable("scan_runs")
       .set({

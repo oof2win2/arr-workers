@@ -4,7 +4,7 @@ import { getClients } from "../../services/clients";
 import { CROSS_SEED_CATEGORIES } from "../constants";
 import type { CrossSeedMatch } from "../../services/scan";
 import { getTorrentFileSizes, matchCrossSeedPeers } from "../../services/scan";
-import { unlink } from "node:fs/promises";
+import { logger } from "../../lib/logger";
 
 export interface RemoveTorrentJob {
   itemId: number;
@@ -19,6 +19,8 @@ export const removalQueue = new Bunqueue<RemoveTorrentJob>("torrent-removal", {
     "remove-torrent": async (job) => {
       const { itemId, triggeredBy } = job.data;
 
+      logger.info({ itemId, triggeredBy }, "Processing removal job");
+
       const item = await db
         .selectFrom("flagged_items")
         .where("id", "=", itemId)
@@ -26,6 +28,7 @@ export const removalQueue = new Bunqueue<RemoveTorrentJob>("torrent-removal", {
         .executeTakeFirst();
 
       if (!item || item.status !== "approved") {
+        logger.warn({ itemId }, "Item not found or not approved, skipping");
         return { skipped: true, reason: "item not found or not approved" };
       }
 
@@ -68,19 +71,28 @@ export const removalQueue = new Bunqueue<RemoveTorrentJob>("torrent-removal", {
               .execute();
           }
 
-          console.log(`Deleting ${item.torrent_name}`);
+          logger.info(
+            { itemId, torrent: item.torrent_name, hash: item.torrent_hash },
+            "Deleting torrent",
+          );
           await qbit.client.torrents.delete(item.torrent_hash, true);
           deletedHashes.push(item.torrent_hash);
           deletedNames.push(item.torrent_name ?? "unknown");
 
           for (const peer of livePeers) {
-            console.log(`Deleting ${peer.name}`);
+            logger.info(
+              { itemId, torrent: peer.name, hash: peer.hash },
+              "Deleting cross-seed peer",
+            );
             try {
               await qbit.client.torrents.delete(peer.hash, true);
               deletedHashes.push(peer.hash);
               deletedNames.push(peer.name);
             } catch (e) {
-              console.error(e);
+              logger.error(
+                { itemId, torrent: peer.name, err: e },
+                "Failed to delete cross-seed peer",
+              );
             }
           }
         }

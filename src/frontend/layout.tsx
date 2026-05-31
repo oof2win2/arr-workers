@@ -34,7 +34,11 @@ export const Layout: FC<PropsWithChildren<{ page: string; base?: string; title?:
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{title}</title>
         <style dangerouslySetInnerHTML={{ __html: css }} />
-        <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js" integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V" crossorigin="anonymous"></script>
+        <script
+          src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"
+          integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V"
+          crossorigin="anonymous"
+        ></script>
       </head>
       <body>
         <Nav page={page} base={base} />
