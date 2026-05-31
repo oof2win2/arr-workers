@@ -4,7 +4,7 @@ import { startScan, approveItem } from "../services/scan";
 import { restartWithConfig } from "../services/scheduler";
 import type { Instance } from "../utils/db/types";
 import { ReviewList } from "../frontend/partials/ReviewList";
-import { InstanceSaved } from "../frontend/pages/InstancesPage";
+import { BASE } from "../config";
 
 export const api = new Hono();
 
@@ -42,7 +42,8 @@ api.post("/instances", async (c) => {
     .executeTakeFirstOrThrow();
 
   if (isHtmx) {
-    return c.html(<InstanceSaved />);
+    c.header("HX-Redirect", `${BASE}/instances`);
+    return c.html("");
   }
   return c.json(result, 201);
 });
@@ -78,7 +79,8 @@ api.put("/instances/:id", async (c) => {
   await db.updateTable("instances").set(body).where("id", "=", id).execute();
 
   if (isHtmx) {
-    return c.html(<InstanceSaved />);
+    c.header("HX-Redirect", `${BASE}/instances`);
+    return c.html("");
   }
 
   const updated = await db

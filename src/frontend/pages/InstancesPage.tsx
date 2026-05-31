@@ -242,16 +242,3 @@ export const InstanceForm: FC<{ id?: string }> = async ({ id }) => {
     </div>
   );
 };
-
-export const InstanceSaved: FC = async () => {
-  return (
-    <div class="card" style={{ maxWidth: 600, borderColor: "var(--success)" }}>
-      <p style={{ color: "var(--success)", marginBottom: 8 }}>
-        Instance saved. Refresh the page to see updated tables.
-      </p>
-      <button onclick="document.getElementById('instance-form-area').innerHTML=''; location.reload();">
-        OK
-      </button>
-    </div>
-  );
-};
