@@ -1,5 +1,5 @@
 import type { FC, PropsWithChildren } from "hono/jsx";
-import css from "./style.css?raw";
+import { css } from "./style";
 
 function Nav({ page, base }: { page: string; base: string }) {
   const links = [

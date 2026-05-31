@@ -1,3 +1,4 @@
+export const css = `
 :root {
   --bg: #0f1117;
   --surface: #1a1d27;
@@ -340,3 +341,4 @@ select:focus {
   color: var(--text-muted);
   font-size: 14px;
 }
+`;
