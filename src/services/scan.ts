@@ -8,7 +8,7 @@ import { readdir, stat } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { CROSS_SEED_CATEGORIES } from "../lib/constants";
 import { logger } from "../lib/logger";
-import { scanQueue } from "../lib/processing/scan-queue";
+import { queue } from "../lib/processing/queue";
 
 interface PendingFlag {
   category: FlaggedItem["category"];
@@ -38,7 +38,7 @@ export async function startScan(triggeredBy: "manual" | "scheduled"): Promise<nu
 
   logger.info({ scanRunId: scanRun.id, triggeredBy }, "Scan queued");
 
-  await scanQueue.add("scan", {
+  await queue.add("scan", {
     scanRunId: scanRun.id,
     triggeredBy,
   });
@@ -637,6 +637,6 @@ export async function approveItem(itemId: number, triggeredBy: "manual" | "sched
     .where("id", "=", itemId)
     .execute();
 
-  const { removalQueue } = await import("../lib/processing/queue");
-  await removalQueue.add("remove-torrent", { itemId, triggeredBy });
+  const { queue } = await import("../lib/processing/queue");
+  await queue.add("remove-torrent", { itemId, triggeredBy });
 }

@@ -3,21 +3,34 @@ import { db } from "../../utils/db/index";
 import { getClients } from "../../services/clients";
 import { CROSS_SEED_CATEGORIES } from "../constants";
 import type { CrossSeedMatch } from "../../services/scan";
-import { getTorrentFileSizes, matchCrossSeedPeers } from "../../services/scan";
+import { getTorrentFileSizes, matchCrossSeedPeers, runScan } from "../../services/scan";
 import { logger } from "../../lib/logger";
+
+export interface ScanJob {
+  scanRunId: number;
+  triggeredBy: "manual" | "scheduled";
+}
 
 export interface RemoveTorrentJob {
   itemId: number;
   triggeredBy: "manual" | "scheduled";
 }
 
-export const removalQueue = new Bunqueue<RemoveTorrentJob>("torrent-removal", {
+export type JobData = ScanJob | RemoveTorrentJob;
+
+export const queue = new Bunqueue<JobData>("cleanuparr", {
   embedded: true,
   dataPath: "bunqueue.db",
   concurrency: 1,
   routes: {
+    scan: async (job) => {
+      const { scanRunId } = job.data as ScanJob;
+      logger.info({ scanRunId, jobId: job.id }, "Processing scan job");
+      await runScan(scanRunId);
+      return { scanRunId };
+    },
     "remove-torrent": async (job) => {
-      const { itemId, triggeredBy } = job.data;
+      const { itemId, triggeredBy } = job.data as RemoveTorrentJob;
 
       logger.info({ itemId, triggeredBy }, "Processing removal job");
 
