@@ -1,0 +1,42 @@
+{
+	"server": {
+		"port": 3000,
+		"host": "0.0.0.0"
+	},
+	"qbittorrent": {
+		"url": "http://localhost:8080",
+		"username": "admin",
+		"password": "adminadmin"
+	},
+	"radarr": {
+		"url": "http://localhost:7878",
+		"apiKey": ""
+	},
+	"sonarr": {
+		"url": "http://localhost:8989",
+		"apiKey": ""
+	},
+	"blacklistedExtensions": [
+		".exe",
+		".bat",
+		".cmd",
+		".com",
+		".scr",
+		".pif",
+		".msi",
+		".dll",
+		".vbs",
+		".js",
+		".jar",
+		".app",
+		".deb",
+		".rpm",
+		".dmg",
+		".pkg",
+		".zip",
+		".rar",
+		".7z",
+		".tar",
+		".gz"
+	]
+}
