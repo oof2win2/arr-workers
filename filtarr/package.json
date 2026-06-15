@@ -3,6 +3,15 @@
 	"module": "src/index.ts",
 	"type": "module",
 	"private": true,
+	"scripts": {
+		"dev": "bun run src/index.ts",
+		"start": "bun run src/index.ts",
+		"lint": "biome lint",
+		"lint:fix": "biome lint --write",
+		"fmt": "biome format --write",
+		"fmt:check": "biome format",
+		"check": "biome check"
+	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.10",
 		"@types/bun": "latest"

@@ -1,0 +1,21 @@
+{
+  "name": "arr-workers",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "cleanuparr",
+    "filtarr"
+  ],
+  "scripts": {
+    "cleanuparr": "bun --filter cleanuparr",
+    "filtarr": "bun --filter filtarr",
+    "dev:cleanuparr": "bun --filter cleanuparr dev",
+    "dev:filtarr": "bun --filter filtarr dev",
+    "build:cleanuparr": "bun --filter cleanuparr build",
+    "lint": "bun --filter cleanuparr lint && bun --filter filtarr lint",
+    "lint:fix": "bun --filter cleanuparr lint:fix && bun --filter filtarr lint:fix",
+    "fmt": "bun --filter cleanuparr fmt && bun --filter filtarr fmt",
+    "fmt:check": "bun --filter cleanuparr fmt:check && bun --filter filtarr fmt:check",
+    "clean": "bun --filter cleanuparr clean && rm -rf node_modules"
+  }
+}
