@@ -1,6 +1,15 @@
 # dependencies (bun install)
 node_modules
 
+<<<<<<< HEAD
+||||||| empty tree
+=======
+# build
+cleanuparr
+
+*.db*
+
+>>>>>>> cleanuparr/main
 # output
 out
 dist
