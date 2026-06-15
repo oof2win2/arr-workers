@@ -1,0 +1,15 @@
+[Unit]
+Description=Cleanuparr
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/cleanuparr
+EnvironmentFile=/opt/cleanuparr/.env
+ExecStart=/opt/cleanuparr/cleanuparr
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

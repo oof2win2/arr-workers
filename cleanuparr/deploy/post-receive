@@ -1,0 +1,34 @@
+#!/bin/bash
+set -ex
+export PATH="$HOME/.bun/bin:$PATH"
+
+WORKDIR=/opt/cleanuparr
+GITDIR=/opt/cleanuparr-repo.git
+
+while read oldrev newrev ref; do
+  if [[ "$ref" = "refs/heads/main" ]]; then
+    echo "=== Deploy $(date) ==="
+
+    git --git-dir="$GITDIR" --work-tree="$WORKDIR" checkout -f main
+    cd "$WORKDIR"
+
+    echo "--- bun install ---"
+    bun install
+
+    echo "--- bun build ---"
+    bun run build
+
+    echo "--- run migrations ---"
+    bunx drizzle-kit push
+
+    echo "--- checking binary ---"
+    ls -la "$WORKDIR/cleanuparr" || {
+      echo "BUILD FAILED: no binary found"
+      exit 1
+    }
+
+    echo "--- restarting ---"
+    sudo systemctl restart cleanuparr
+    echo "=== Done ==="
+  fi
+done

@@ -1,15 +1,12 @@
 # dependencies (bun install)
 node_modules
 
-<<<<<<< HEAD
-||||||| empty tree
-=======
 # build
-cleanuparr
-
+# cleanuparr's compiled binary lives at cleanuparr/cleanuparr ("bun build --outfile cleanuparr" run from the package dir).
+# A bare "cleanuparr" rule would ignore the whole package directory, so anchor it.
+/cleanuparr/cleanuparr
 *.db*
 
->>>>>>> cleanuparr/main
 # output
 out
 dist
@@ -21,8 +18,8 @@ coverage
 
 # logs
 logs
-_.log
-report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+*.log
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # dotenv environment variable files
 .env
