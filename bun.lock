@@ -9,7 +9,7 @@
       "name": "cleanuparr",
       "dependencies": {
         "@libsql/client": "^0.17.3",
-        "@oof2win2/qbittorrent-api": "^0.0.3",
+        "@oof2win2/qbittorrent-api": "^0.0.4",
         "bunqueue": "^2.7.14",
         "drizzle-orm": "^0.45.2",
         "hono": "^4.12.23",
@@ -167,7 +167,7 @@
 
     "@neon-rs/load": ["@neon-rs/load@0.0.4", "", {}, "sha512-kTPhdZyTQxB+2wpiRcFWrDcejc4JI6tkPuS7UZCG4l6Zvc5kU/gGQ/ozvHTh1XR5tS+UlfAfGuPajjzQjCiHCw=="],
 
-    "@oof2win2/qbittorrent-api": ["@oof2win2/qbittorrent-api@0.0.3", "", { "dependencies": { "got": "^15.0.5", "tough-cookie": "^6.0.1", "zod": "^4.4.3" }, "peerDependencies": { "typescript": "^5" } }, "sha512-0pTnPcv8WjOKAF2cz5Kum0VSMU7NjBAtLRgQKEni+J2L+ExbER7XGPnJPi/4GM+dEyuY/P4qnNnaqgbA8fLOyw=="],
+    "@oof2win2/qbittorrent-api": ["@oof2win2/qbittorrent-api@0.0.4", "", { "dependencies": { "got": "^15.0.5", "tough-cookie": "^6.0.1", "zod": "^4.4.3" }, "peerDependencies": { "typescript": "^5" } }, "sha512-j69M4omxjQLNQiKKOazmOL3FzZszZyAJS8btcU9YLPTXrckV8SULDisjjGy8izZ8m/Q4d4tqfh1HiOOwA5+Bkw=="],
 
     "@oxfmt/binding-android-arm-eabi": ["@oxfmt/binding-android-arm-eabi@0.51.0", "", { "os": "android", "cpu": "arm" }, "sha512-Ni0sCqg5CIHaLIYFGj+ncbcumylvNC6FE4rfD0KfdmnWHbPJ+zev0qZCXKxy2hFVa0fYRK0yPzf5nzPbkZou7g=="],
 
